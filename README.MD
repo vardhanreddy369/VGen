@@ -1,5 +1,79 @@
 # VGen
 
+## Quickstart (Fork Usage)
+
+This section summarizes how to run the project end-to-end with the DreamVideo pipeline and the custom subject configs included in this repo.
+
+### 1) Environment
+
+Create and activate a Python environment, then install dependencies:
+
+```
+conda create -n vgen python=3.10
+conda activate vgen
+pip install -r requirements.txt
+```
+
+Install a CUDA-enabled PyTorch build that matches your driver/CUDA version. Follow the official instructions at https://pytorch.org/get-started/locally/.
+
+### 2) Data list format
+
+DreamVideo expects list files with one entry per line:
+
+```
+relative/path/to/image.jpg|||a * person
+```
+
+Examples:
+- `data/custom/train/img_phantom_5.txt`
+- `data/custom/infer/subject_phantom_5.txt`
+
+### 3) DreamVideo training (step1/step2)
+
+Step 1 (text inversion):
+
+```
+python train_net.py --cfg configs/dreamvideo/subjectLearning/phantom5_step1.yaml
+```
+
+Step 2 (adapter tuning):
+
+```
+python train_net.py --cfg configs/dreamvideo/subjectLearning/phantom5_step2.yaml
+```
+
+Repeat for phantom10/phantom15 by swapping the config file.
+
+### 4) DreamVideo inference
+
+```
+python inference.py --cfg configs/dreamvideo/infer/examples/subject_phantom_5.yaml
+python inference.py --cfg configs/dreamvideo/infer/examples/subject_phantom_10.yaml
+python inference.py --cfg configs/dreamvideo/infer/examples/subject_phantom_15.yaml
+```
+
+Outputs are written under `workspace/` based on the `log_dir` in each config.
+
+### 5) Metrics (CLIP-T / CLIP-I / DINO-I)
+
+Follow `metric/README.MD` and run:
+
+```
+python metric/cal_metric_DreamVideo.py --videos_dir_path <videos_dir> --prompts_path <test_prompts.txt>
+```
+
+The prompts file format is:
+
+```
+video.mp4|||/abs/path/to/reference_img_dir|||text prompt
+```
+
+### 6) Common configs to edit
+
+- Subject learning: `configs/dreamvideo/subjectLearning/*.yaml`
+- Inference: `configs/dreamvideo/infer/examples/*.yaml`
+- Data lists: `data/custom/**`
+
 
 ![figure1](source/VGen.jpg "figure1")
 
