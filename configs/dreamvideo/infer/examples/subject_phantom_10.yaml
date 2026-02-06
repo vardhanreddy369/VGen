@@ -16,4 +16,4 @@ test_data_dir: /lustre/fs1/home/sr849057/Phantom-Data/phantom_sets/phantom_10
 subject_cfg: configs/dreamvideo/subjectLearning/phantom10_step2.yaml
 base_model: models/model_scope_v1-5_0632000.pth
 text_embedding_path: workspace/dreamvideo/phantom10/step1/phantom10_step1/embeddings/text_embedding_of_*_0003000.pth
-identity_adapter_path: workspace/dreamvideo/phantom10/step2/phantom10_step2/checkpoints/adapter_00003000.pth
+identity_adapter_path: workspace/dreamvideo/phantom10/step2/phantom10_step2/checkpoints/adapter_00001000.pth
