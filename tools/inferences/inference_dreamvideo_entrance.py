@@ -64,6 +64,12 @@ def worker(gpu, cfg, cfg_update):
     '''
     Inference worker for each gpu
     '''
+    def _safe_torch_load(path, map_location='cpu'):
+        try:
+            return torch.load(path, map_location=map_location, weights_only=False)
+        except TypeError:
+            return torch.load(path, map_location=map_location)
+
     cfg_prefix = getattr(cfg, 'cfg_prefix', '')
     if hasattr(cfg, 'subject_cfg'):
         cfg = assign_signle_cfg(cfg, cfg_update, 'subject_cfg')
@@ -157,7 +163,7 @@ def worker(gpu, cfg, cfg_update):
     # [Model] UNet 
     model = MODEL.build(cfg.UNet)
 
-    state_dict = torch.load(cfg.base_model, map_location='cpu')
+    state_dict = _safe_torch_load(cfg.base_model, map_location='cpu')
     if 'state_dict' in state_dict:
         resume_step = state_dict['step']
         state_dict = state_dict['state_dict']
@@ -171,10 +177,10 @@ def worker(gpu, cfg, cfg_update):
         subject_cfg_name = cfg.subject_cfg.split('/')[-1].split('.')[0]
         identity_adapter_name = f'adapter_{cfg.identity_adapter_index:08d}.pth'
         identity_adapter_path = os.path.join(subject_log_dir, subject_cfg_name, 'checkpoints', identity_adapter_name)
-        id_adapter_state_dict = torch.load(identity_adapter_path, map_location='cpu')
+        id_adapter_state_dict = _safe_torch_load(identity_adapter_path, map_location='cpu')
         merged_state_dict.update(id_adapter_state_dict['state_dict'])
     elif hasattr(cfg, 'identity_adapter_path'):
-        id_adapter_state_dict = torch.load(cfg.identity_adapter_path, map_location='cpu')
+        id_adapter_state_dict = _safe_torch_load(cfg.identity_adapter_path, map_location='cpu')
         merged_state_dict.update(id_adapter_state_dict['state_dict'])
 
     if hasattr(cfg, 'motion_adapter_index') and hasattr(cfg, 'motion_adapter_path'):
@@ -183,10 +189,10 @@ def worker(gpu, cfg, cfg_update):
         motion_cfg_name = cfg.motion_cfg.split('/')[-1].split('.')[0]
         motion_adapter_name = f'adapter_{cfg.motion_adapter_index:08d}.pth'
         motion_adapter_path = os.path.join(motion_log_dir, motion_cfg_name, 'checkpoints', motion_adapter_name)
-        motion_adapter_state_dict = torch.load(motion_adapter_path, map_location='cpu')
+        motion_adapter_state_dict = _safe_torch_load(motion_adapter_path, map_location='cpu')
         merged_state_dict.update(motion_adapter_state_dict['state_dict'])
     elif hasattr(cfg, 'motion_adapter_path'):
-        motion_adapter_state_dict = torch.load(cfg.motion_adapter_path, map_location='cpu')
+        motion_adapter_state_dict = _safe_torch_load(cfg.motion_adapter_path, map_location='cpu')
         merged_state_dict.update(motion_adapter_state_dict['state_dict'])
 
     status = model.load_state_dict(merged_state_dict, strict=True)
@@ -198,7 +204,7 @@ def worker(gpu, cfg, cfg_update):
 
     inverse_noise_strength = getattr(cfg, 'inverse_noise_strength', 0)
     if inverse_noise_strength > 0:
-        latents = torch.load(cfg.latents_path, map_location='cpu')
+        latents = _safe_torch_load(cfg.latents_path, map_location='cpu')
         latents = latents.to(gpu)
         inverse_noise = diffusion.ddim_reverse_sample_loop(
             x0=latents,
@@ -287,6 +293,7 @@ def worker(gpu, cfg, cfg_update):
         
         text_size = cfg.resolution[-1]
         cap_name = re.sub(r'[^\w\s\*]', '', caption).replace(' ', '_')
+        cap_name = cap_name.replace('*', 'star')
         file_name = f'{cap_name}_{cfg.seed}_{idx}.mp4'
         local_path = os.path.join(cfg.log_dir, f'{file_name}')
         os.makedirs(os.path.dirname(local_path), exist_ok=True)

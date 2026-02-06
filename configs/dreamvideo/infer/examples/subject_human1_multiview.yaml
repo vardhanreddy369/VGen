@@ -1,0 +1,19 @@
+TASK_TYPE: inference_dreamvideo_entrance
+use_fp16: False
+guide_scale: 9.0
+chunk_size: 1
+decoder_bs: 1
+max_frames: 32
+scale: 8
+batch_size: 1
+noise_strength: 0.1
+round: 1
+seed: 2767  # Specify a fixed seed during inference. Invalid if use_random_seed is True.
+use_random_seed: False  # Set to True to use the random seed for inference
+log_dir: workspace/dreamvideo/infer/subject_custom_multiview
+test_list_path: data/custom/infer/subject_human1.txt  # Reuse prompt list
+test_data_dir: data/images/custom/human1_multiview  # Multiview subject images
+subject_cfg: configs/dreamvideo/subjectLearning/human1_subjectLearning_step2_multiview.yaml  # Path to multiview subject learning config
+base_model: models/model_scope_v1-5_0632000.pth
+text_embedding_path: workspace/dreamvideo/subjectLearningStep1MV/human1_subjectLearning_step1_multiview/embeddings/text_embedding_of_*_0003000.pth
+identity_adapter_path: workspace/dreamvideo/subjectLearningStep2MV/human1_subjectLearning_step2_multiview/checkpoints/adapter_00003000.pth

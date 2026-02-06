@@ -18,3 +18,10 @@ outputs/
 */__pycache__
 models/
 workspace/
+.vscode/
+venv/
+logs/
+Phantom-Data/
+data/images/custom/
+*.parquet
+phantom_probe_candidates.json

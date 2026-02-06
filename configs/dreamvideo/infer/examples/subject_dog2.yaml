@@ -1,5 +1,5 @@
 TASK_TYPE: inference_dreamvideo_entrance
-use_fp16: True
+use_fp16: False
 guide_scale: 9.0
 chunk_size: 2
 decoder_bs: 2

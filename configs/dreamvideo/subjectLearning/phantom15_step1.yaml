@@ -1,0 +1,119 @@
+TASK_TYPE: train_dreamvideo_entrance
+use_fp16: false
+ENABLE: true
+use_ema: false
+num_workers: 6
+frame_lens: [1, ]
+sample_fps: [8, ]
+resolution: [256, 256]
+vit_resolution: [224, 224]
+img_dataset: {
+    "type": "ImageCustomDataset",
+    "data_list": ["data/custom/train/img_phantom_15.txt"],
+    "data_dir_list": ["/lustre/fs1/home/sr849057/Phantom-Data/phantom_sets/phantom_15"],
+    "vit_resolution": [224, 224],
+    "resolution": [256, 256],
+    "max_words": 6,
+    "placeholder_strings": ["*"]
+}
+embedder: {
+    "type": "FrozenOpenCLIPCustomEmbedder",
+    "layer": "penultimate",
+    "vit_resolution": [224, 224],
+    "pretrained": "models/open_clip_pytorch_model.bin"
+}
+embedmanager: {
+    "type": "EmbeddingManager",
+    "placeholder_strings": ["*"],
+    "initializer_words": ["person"],
+    "per_image_tokens": False,
+    "num_vectors_per_token": 1,
+    "progressive_words": False
+}
+UNet: {
+    "type": "UNetSD_T2VBase",
+    "in_dim": 4,
+    "y_dim": 1024,
+    "upper_len": 128,
+    "context_dim": 1024,
+    "out_dim": 4,
+    "dim_mult": [1, 2, 4, 4],
+    "num_heads": 8,
+    "default_fps": 8,
+    "head_dim": 64,
+    "num_res_blocks": 2,
+    "dropout": 0.1,
+    "misc_dropout": 0.4,
+    "temporal_attention": True,
+    "temporal_attn_times": 1,
+    "use_checkpoint": True,
+    "use_fps_condition": False,
+    "use_sim_mask": False
+}
+Diffusion: {
+    "type": "DiffusionDDIM",
+    "schedule": "linear_sd",
+    "schedule_param": {
+        "num_timesteps": 1000,
+        "init_beta": 0.00085,
+        "last_beta": 0.0120,
+        "zero_terminal_snr": False
+    },
+    "mean_type": "eps",
+    "loss_type": "mse",
+    "var_type": "fixed_small",
+    "rescale_timesteps": False,
+    "noise_strength": 0.1
+}
+batch_sizes: {
+    "1": 1
+}
+visual_train: {
+    "type": "VisualTrainDreamVideo",
+    "partial_keys": [
+        ["y"],
+    ],
+    "use_offset_noise": True,
+    "guide_scale": 9.0,
+    "infer_with_custom_text": True,
+    "data_list": ["data/custom/infer/subject_phantom_15.txt"],
+    "data_dir_list": ["/lustre/fs1/home/sr849057/Phantom-Data/phantom_sets/phantom_15"],
+}
+Pretrain: {
+    "type": pretrain_dreamvideo,
+    "fix_spatial_weight": True,
+    "fix_temporal_weight": True,
+    "grad_scale": 0.2,
+    "resume_checkpoint": "models/model_scope_v1-5_0632000.pth",
+    "sd_keys_path": "data/stable_diffusion_image_key_temporal_attention_x1.json",
+}
+chunk_size: 1
+decoder_bs: 2
+lr: 0.0001
+
+use_textInversion: True
+freeze_text_embedding: False
+fix_spatial_weight: True
+fix_temporal_weight: True
+train_adapter: False
+use_clip_adapter_condition: False
+use_mask_diffusion: False
+
+gen_frames: 32
+
+decay_mode: "none"
+negative_prompt: ""
+sample_preview: True
+
+noise_strength: 0.1
+p_zero: 0
+guide_scale: 9.0
+num_steps: 3000
+
+viz_interval: 500
+save_ckp_interval: 500
+
+log_dir: "workspace/dreamvideo/phantom15/step1"
+log_interval: 10
+seed: 8888
+use_random_seed: False

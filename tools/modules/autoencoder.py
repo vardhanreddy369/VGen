@@ -62,7 +62,10 @@ class AutoencoderKL(nn.Module):
             self.init_from_ckpt(pretrained, ignore_keys=ignore_keys)
 
     def init_from_ckpt(self, path, ignore_keys=list()):
-        sd = torch.load(path, map_location="cpu")["state_dict"]
+        try:
+            sd = torch.load(path, map_location="cpu", weights_only=False)["state_dict"]
+        except TypeError:
+            sd = torch.load(path, map_location="cpu")["state_dict"]
         keys = list(sd.keys())
         sd_new = collections.OrderedDict()
         for k in keys:

@@ -10,6 +10,7 @@ import copy
 import time
 import json
 import pickle
+import shutil
 import base64
 import imageio
 import hashlib
@@ -25,6 +26,24 @@ import torchvision.utils as tvutils
 from multiprocessing.pool import ThreadPool as Pool
 from einops import rearrange
 from PIL import Image, ImageDraw, ImageFont
+
+try:
+    import imageio_ffmpeg
+except Exception:
+    imageio_ffmpeg = None
+
+
+def _ensure_ffmpeg():
+    if os.environ.get('IMAGEIO_FFMPEG_EXE'):
+        return
+    if shutil.which('ffmpeg'):
+        return
+    if imageio_ffmpeg is None:
+        return
+    try:
+        os.environ['IMAGEIO_FFMPEG_EXE'] = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        pass
 
 
 def gen_text_image(captions, text_size):
@@ -96,9 +115,24 @@ def save_video_refimg_and_text(
                 for fid, frame in enumerate(images):
                     tpth = os.path.join(frame_dir, '%04d.png' % (fid+1))
                     cv2.imwrite(tpth, frame[:,:,::-1], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
-                cmd = f'ffmpeg -y -f image2 -loglevel quiet -framerate {save_fps} -i {frame_dir}/%04d.png -vcodec libx264 -crf 17  -pix_fmt yuv420p {local_path}'
-                os.system(cmd); os.system(f'rm -rf {frame_dir}')
-                # os.system(f'rm -rf {local_path}')
+                _ensure_ffmpeg()
+                ffmpeg_exe = os.environ.get('IMAGEIO_FFMPEG_EXE') or shutil.which('ffmpeg')
+                if ffmpeg_exe:
+                    cmd = f'"{ffmpeg_exe}" -y -f image2 -loglevel quiet -framerate {save_fps} -i "{frame_dir}/%04d.png" -vcodec libx264 -crf 17  -pix_fmt yuv420p "{local_path}"'
+                    os.system(cmd)
+                else:
+                    writer = imageio.get_writer(local_path, fps=save_fps, codec='libx264', quality=8)
+                    for frame in images:
+                        writer.append_data(frame)
+                    writer.close()
+                try:
+                    size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+                except Exception:
+                    size = 0
+                if size > 10000:
+                    os.system(f'rm -rf {frame_dir}')
+                else:
+                    print(f'[WARN] Small video file ({size} bytes). Keeping frames at: {frame_dir}')
             exception = None
             break
         except Exception as e:
@@ -195,13 +229,35 @@ def save_i2vgen_video_safe(
                 local_path = local_path + '.png'
                 cv2.imwrite(local_path, images[0][:,:,::-1], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
             else:
-                writer = imageio.get_writer(local_path, fps=save_fps, codec='libx264', quality=8)
-                for fid, frame in enumerate(images):
-                    if fid == num_image-1: # Fix known bugs.
-                        ratio = (np.sum((frame >= 117) & (frame <= 137)))/(frame.size)
-                        if ratio > 0.4: continue
-                    writer.append_data(frame)
-                writer.close()
+                _ensure_ffmpeg()
+                ffmpeg_exe = os.environ.get('IMAGEIO_FFMPEG_EXE') or shutil.which('ffmpeg')
+                if ffmpeg_exe:
+                    frame_dir = os.path.join(os.path.dirname(local_path), '%s_frames' % (os.path.basename(local_path)))
+                    os.system(f'rm -rf {frame_dir}'); os.makedirs(frame_dir, exist_ok=True)
+                    for fid, frame in enumerate(images):
+                        if fid == num_image-1: # Fix known bugs.
+                            ratio = (np.sum((frame >= 117) & (frame <= 137)))/(frame.size)
+                            if ratio > 0.4: continue
+                        tpth = os.path.join(frame_dir, '%04d.png' % (fid+1))
+                        cv2.imwrite(tpth, frame[:,:,::-1], [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+                    cmd = f'"{ffmpeg_exe}" -y -f image2 -loglevel quiet -framerate {save_fps} -i "{frame_dir}/%04d.png" -vcodec libx264 -crf 17  -pix_fmt yuv420p "{local_path}"'
+                    os.system(cmd)
+                    try:
+                        size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+                    except Exception:
+                        size = 0
+                    if size > 10000:
+                        os.system(f'rm -rf {frame_dir}')
+                    else:
+                        print(f'[WARN] Small video file ({size} bytes). Keeping frames at: {frame_dir}')
+                else:
+                    writer = imageio.get_writer(local_path, fps=save_fps, codec='libx264', quality=8)
+                    for fid, frame in enumerate(images):
+                        if fid == num_image-1: # Fix known bugs.
+                            ratio = (np.sum((frame >= 117) & (frame <= 137)))/(frame.size)
+                            if ratio > 0.4: continue
+                        writer.append_data(frame)
+                    writer.close()
             break
         except Exception as e:
             exception = e
