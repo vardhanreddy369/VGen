@@ -17,6 +17,7 @@ Canvas sync behavior (default):
 - skips assignments with no due date
 - maps Canvas statuses into your Notion `Status`
 - auto-fills `Priority`, `Due Bucket`, and `Course Tag` when those columns exist
+- auto-fills `Description`, `Files Needed`, and `Submission Type` from Canvas assignment details
 - auto-fills/maintains `Needs Submission` and `Priority Rank` when those columns exist
 - keeps manually completed items in completed state on future syncs
 

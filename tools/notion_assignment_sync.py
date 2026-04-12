@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import logging
 import os
@@ -40,6 +41,9 @@ class AssignmentPayload:
     status: Optional[str] = None
     priority: Optional[str] = None
     due_bucket: Optional[str] = None
+    description: Optional[str] = None
+    files_needed: Optional[str] = None
+    submission_type: Optional[str] = None
     needs_submission: Optional[bool] = None
     priority_rank: Optional[int] = None
     source_url: Optional[str] = None
@@ -59,6 +63,9 @@ class AssignmentPayload:
             status=_optional_string(data.get("status")),
             priority=_optional_string(data.get("priority")),
             due_bucket=_optional_string(data.get("due_bucket")),
+            description=_optional_string(data.get("description")),
+            files_needed=_optional_string(data.get("files_needed")),
+            submission_type=_optional_string(data.get("submission_type")),
             needs_submission=_optional_bool(data.get("needs_submission")),
             priority_rank=_optional_int(data.get("priority_rank")),
             source_url=_optional_string(data.get("source_url")),
@@ -75,6 +82,9 @@ class PropertyMapping:
     status: Optional[Tuple[str, str]]
     priority: Optional[Tuple[str, str]]
     due_bucket: Optional[Tuple[str, str]]
+    description: Optional[Tuple[str, str]]
+    files_needed: Optional[Tuple[str, str]]
+    submission_type: Optional[Tuple[str, str]]
     needs_submission: Optional[Tuple[str, str]]
     priority_rank: Optional[Tuple[str, str]]
     source_url: Optional[Tuple[str, str]]
@@ -83,6 +93,7 @@ class PropertyMapping:
     status_options: Optional[List[str]] = None
     priority_options: Optional[List[str]] = None
     due_bucket_options: Optional[List[str]] = None
+    submission_type_options: Optional[List[str]] = None
 
 
 @dataclass
@@ -101,6 +112,9 @@ class CanvasAssignment:
     source_url: Optional[str]
     status: str
     notes: Optional[str]
+    description: Optional[str]
+    files_needed: Optional[str]
+    submission_type: Optional[str]
 
     @property
     def external_id(self) -> str:
@@ -256,6 +270,9 @@ class CanvasClient:
             source_url = _optional_string(raw.get("html_url"))
             status = _canvas_status_from_submission(raw.get("submission"))
             notes = _canvas_notes(raw)
+            description = _canvas_description(raw)
+            files_needed = _canvas_files_needed(raw)
+            submission_type = _canvas_submission_type(raw)
             assignments.append(
                 CanvasAssignment(
                     course_id=course.id,
@@ -266,6 +283,9 @@ class CanvasClient:
                     source_url=source_url,
                     status=status,
                     notes=notes,
+                    description=description,
+                    files_needed=files_needed,
+                    submission_type=submission_type,
                 )
             )
         return assignments
@@ -393,6 +413,22 @@ class AssignmentSyncService:
                 allowed_options=self.mapping.due_bucket_options,
             )
 
+        if payload.description and self.mapping.description:
+            prop_name, prop_type = self.mapping.description
+            properties[prop_name] = _value_by_property_type(prop_type, payload.description)
+
+        if payload.files_needed and self.mapping.files_needed:
+            prop_name, prop_type = self.mapping.files_needed
+            properties[prop_name] = _value_by_property_type(prop_type, payload.files_needed)
+
+        if payload.submission_type and self.mapping.submission_type:
+            prop_name, prop_type = self.mapping.submission_type
+            properties[prop_name] = _value_by_property_type(
+                prop_type,
+                payload.submission_type,
+                allowed_options=self.mapping.submission_type_options,
+            )
+
         if payload.needs_submission is not None and self.mapping.needs_submission:
             prop_name, prop_type = self.mapping.needs_submission
             if prop_type == "checkbox":
@@ -451,6 +487,9 @@ def load_service_from_env() -> AssignmentSyncService:
     _log_optional_mapping("Status", mapping.status)
     _log_optional_mapping("Priority", mapping.priority)
     _log_optional_mapping("Due Bucket", mapping.due_bucket)
+    _log_optional_mapping("Description", mapping.description)
+    _log_optional_mapping("Files Needed", mapping.files_needed)
+    _log_optional_mapping("Submission Type", mapping.submission_type)
     _log_optional_mapping("Needs Submission", mapping.needs_submission)
     _log_optional_mapping("Priority Rank", mapping.priority_rank)
     _log_optional_mapping("Source URL", mapping.source_url)
@@ -525,6 +564,9 @@ def sync_canvas_to_notion(
                 status=notion_status,
                 priority=priority,
                 due_bucket=due_bucket,
+                description=assignment.description,
+                files_needed=assignment.files_needed,
+                submission_type=assignment.submission_type,
                 needs_submission=needs_submission,
                 priority_rank=priority_rank,
                 source_url=assignment.source_url,
@@ -597,6 +639,27 @@ def detect_property_mapping(properties: Dict[str, Dict[str, Any]]) -> PropertyMa
         candidates=("Due Bucket", "Due Status"),
     )
 
+    description = _detect_property(
+        properties=properties,
+        env_name="NOTION_DESCRIPTION_PROPERTY",
+        allowed_types=("rich_text",),
+        candidates=("Description", "Assignment Description", "Details"),
+    )
+
+    files_needed = _detect_property(
+        properties=properties,
+        env_name="NOTION_FILES_NEEDED_PROPERTY",
+        allowed_types=("rich_text",),
+        candidates=("Files Needed", "Required Files", "File Requirements"),
+    )
+
+    submission_type = _detect_property(
+        properties=properties,
+        env_name="NOTION_SUBMISSION_TYPE_PROPERTY",
+        allowed_types=("select", "rich_text"),
+        candidates=("Submission Type", "Submit Type"),
+    )
+
     needs_submission = _detect_property(
         properties=properties,
         env_name="NOTION_NEEDS_SUBMISSION_PROPERTY",
@@ -622,7 +685,7 @@ def detect_property_mapping(properties: Dict[str, Dict[str, Any]]) -> PropertyMa
         properties=properties,
         env_name="NOTION_NOTES_PROPERTY",
         allowed_types=("rich_text",),
-        candidates=("Notes", "Details", "Description"),
+        candidates=("Notes", "Extra Notes"),
     )
 
     external_id = _detect_property(
@@ -639,6 +702,9 @@ def detect_property_mapping(properties: Dict[str, Dict[str, Any]]) -> PropertyMa
         status=status,
         priority=priority,
         due_bucket=due_bucket,
+        description=description,
+        files_needed=files_needed,
+        submission_type=submission_type,
         needs_submission=needs_submission,
         priority_rank=priority_rank,
         source_url=source_url,
@@ -647,6 +713,7 @@ def detect_property_mapping(properties: Dict[str, Dict[str, Any]]) -> PropertyMa
         status_options=_property_options(properties, status),
         priority_options=_property_options(properties, priority),
         due_bucket_options=_property_options(properties, due_bucket),
+        submission_type_options=_property_options(properties, submission_type),
     )
 
 
@@ -804,7 +871,23 @@ def _value_by_property_type(
 
 
 def _to_rich_text(text: str) -> list[Dict[str, Any]]:
-    return [{"type": "text", "text": {"content": text}}]
+    cleaned = text.strip()
+    if not cleaned:
+        return []
+
+    max_chunk_size = 1900
+    max_chunks = 80
+    chunks = [
+        cleaned[index : index + max_chunk_size]
+        for index in range(0, len(cleaned), max_chunk_size)
+    ]
+
+    if len(chunks) > max_chunks:
+        chunks = chunks[:max_chunks]
+        if len(chunks[-1]) > 3:
+            chunks[-1] = f"{chunks[-1][:-3]}..."
+
+    return [{"type": "text", "text": {"content": chunk}} for chunk in chunks]
 
 
 def _extract_notion_error(raw_error: str) -> str:
@@ -988,6 +1071,92 @@ def _priority_to_rank(priority: str) -> int:
     return mapping.get(priority.strip().lower(), 4)
 
 
+def _canvas_description(assignment: Dict[str, Any]) -> Optional[str]:
+    raw_description = assignment.get("description")
+    if not isinstance(raw_description, str):
+        return None
+
+    text = raw_description
+    text = re.sub(r"(?i)<br\\s*/?>", "\n", text)
+    text = re.sub(r"(?i)</p\\s*>", "\n\n", text)
+    text = re.sub(r"(?i)<li\\s*>", "- ", text)
+    text = re.sub(r"(?i)</li\\s*>", "\n", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r" *\n *", "\n", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = text.strip()
+    if not text:
+        return None
+    if len(text) > 8000:
+        return f"{text[:7997]}..."
+    return text
+
+
+def _canvas_submission_type(assignment: Dict[str, Any]) -> Optional[str]:
+    raw_types = assignment.get("submission_types")
+    if not isinstance(raw_types, list):
+        return None
+
+    display_map = {
+        "discussion_topic": "Discussion",
+        "external_tool": "External tool",
+        "media_recording": "Media recording",
+        "none": "No submission",
+        "not_graded": "Not graded",
+        "on_paper": "On paper",
+        "online_quiz": "Canvas quiz",
+        "online_text_entry": "Text entry",
+        "online_upload": "File upload",
+        "online_url": "Website URL",
+        "student_annotation": "Student annotation",
+    }
+
+    values: List[str] = []
+    seen: set[str] = set()
+    for item in raw_types:
+        if not isinstance(item, str):
+            continue
+        label = display_map.get(item, item.replace("_", " ").title())
+        if label not in seen:
+            seen.add(label)
+            values.append(label)
+
+    if not values:
+        return None
+    return ", ".join(values)
+
+
+def _canvas_files_needed(assignment: Dict[str, Any]) -> Optional[str]:
+    allowed_extensions = assignment.get("allowed_extensions")
+    if isinstance(allowed_extensions, list) and allowed_extensions:
+        normalized: List[str] = []
+        seen: set[str] = set()
+        for extension in allowed_extensions:
+            ext = _optional_string(extension)
+            if not ext:
+                continue
+            dotted = f".{ext.lstrip('.')}"
+            if dotted.lower() not in seen:
+                seen.add(dotted.lower())
+                normalized.append(dotted)
+        if normalized:
+            return ", ".join(normalized)
+
+    submission_types = assignment.get("submission_types")
+    if not isinstance(submission_types, list):
+        return None
+    if "online_upload" in submission_types:
+        return "File upload required (no extension list provided)."
+    if any(
+        item in submission_types
+        for item in ("discussion_topic", "online_text_entry", "online_url", "on_paper", "not_graded")
+    ):
+        return "No file upload required."
+    return None
+
+
 def _canvas_notes(assignment: Dict[str, Any]) -> Optional[str]:
     parts: list[str] = []
 
@@ -1128,6 +1297,9 @@ def build_parser() -> argparse.ArgumentParser:
     send_parser.add_argument("--due-date", help="Due date, e.g. 2026-04-20")
     send_parser.add_argument("--course", help="Course/class name")
     send_parser.add_argument("--status", help="Notion status/select value")
+    send_parser.add_argument("--description", help="Assignment description text")
+    send_parser.add_argument("--files-needed", help="Required files/extensions")
+    send_parser.add_argument("--submission-type", help="Submission type label")
     send_parser.add_argument("--source-url", help="Source link")
     send_parser.add_argument("--notes", help="Extra notes")
     send_parser.add_argument("--external-id", help="ID used for duplicate detection")
@@ -1194,6 +1366,9 @@ def main() -> None:
             due_date=args.due_date,
             course=args.course,
             status=args.status,
+            description=args.description,
+            files_needed=args.files_needed,
+            submission_type=args.submission_type,
             source_url=args.source_url,
             notes=args.notes,
             external_id=args.external_id,

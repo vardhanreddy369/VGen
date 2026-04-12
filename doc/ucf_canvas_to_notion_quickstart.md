@@ -20,6 +20,9 @@ Required:
 - `Priority` (Select)
 - `Due Bucket` (Select)
 - `Course Tag` (Select or Text)
+- `Description` (Text)
+- `Files Needed` (Text)
+- `Submission Type` (Text or Select)
 - `Needs Submission` (Formula or Checkbox)
 - `Priority Rank` (Formula or Number)
 
