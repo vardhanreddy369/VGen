@@ -552,6 +552,11 @@ def sync_canvas_to_notion(
                 due_at=assignment.due_at,
                 notion_status=notion_status,
             )
+            combined_description = _compose_assignment_description(
+                description=assignment.description,
+                files_needed=assignment.files_needed,
+                submission_type=assignment.submission_type,
+            )
             needs_submission = _is_submission_needed(
                 due_at=assignment.due_at,
                 notion_status=notion_status,
@@ -564,7 +569,7 @@ def sync_canvas_to_notion(
                 status=notion_status,
                 priority=priority,
                 due_bucket=due_bucket,
-                description=assignment.description,
+                description=combined_description,
                 files_needed=assignment.files_needed,
                 submission_type=assignment.submission_type,
                 needs_submission=needs_submission,
@@ -1069,6 +1074,27 @@ def _priority_to_rank(priority: str) -> int:
         "low": 4,
     }
     return mapping.get(priority.strip().lower(), 4)
+
+
+def _compose_assignment_description(
+    description: Optional[str],
+    files_needed: Optional[str],
+    submission_type: Optional[str],
+) -> Optional[str]:
+    header_lines: List[str] = []
+    if submission_type:
+        header_lines.append(f"Submission Type: {submission_type}")
+    if files_needed:
+        header_lines.append(f"Files Needed: {files_needed}")
+
+    body = (description or "").strip()
+    if header_lines and body:
+        return "\n".join(header_lines) + "\n\n" + body
+    if header_lines:
+        return "\n".join(header_lines)
+    if body:
+        return body
+    return None
 
 
 def _canvas_description(assignment: Dict[str, Any]) -> Optional[str]:
