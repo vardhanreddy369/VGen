@@ -1,0 +1,41 @@
+name: Canvas to Notion Sync
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: canvas-to-notion-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate secrets
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          CANVAS_API_TOKEN: ${{ secrets.CANVAS_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${NOTION_TOKEN}"
+          test -n "${NOTION_DATABASE_ID}"
+          test -n "${CANVAS_API_TOKEN}"
+
+      - name: Sync assignments
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
+          CANVAS_BASE_URL: ${{ secrets.CANVAS_BASE_URL }}
+          CANVAS_API_TOKEN: ${{ secrets.CANVAS_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          python tools/notion_assignment_sync.py sync-canvas
