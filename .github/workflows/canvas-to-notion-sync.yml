@@ -4,6 +4,10 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  push:
+    paths:
+      - "tools/notion_assignment_sync.py"
+      - ".github/workflows/canvas-to-notion-sync.yml"
 
 permissions:
   contents: read
@@ -13,11 +17,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  sync:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Syntax check
+        run: python -m py_compile tools/notion_assignment_sync.py && echo "Syntax OK"
+
+      - name: Lint
+        run: ruff check tools/notion_assignment_sync.py
+
+      - name: Smoke test (--help)
+        run: python tools/notion_assignment_sync.py --help
+
+  sync:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
       - name: Validate secrets
         env:
